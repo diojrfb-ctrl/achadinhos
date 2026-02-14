@@ -1,5 +1,5 @@
 import os
-import subprocess
+import glob
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -12,17 +12,18 @@ def configurar_navegador():
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
     
-    # No Render, tentamos encontrar o Chromium do Playwright
+    # Busca automática do binário do Chromium no Render
     if os.getenv("RENDER"):
-        try:
-            # Comando que retorna onde o executável foi instalado
-            executable_path = subprocess.getoutput("which chromium").strip()
-            if not executable_path:
-                # Caminho padrão do Playwright no Linux
-                executable_path = "/home/render/.cache/ms-playwright/chromium-1155/chrome-linux/chrome"
-            chrome_options.binary_location = executable_path
-        except:
-            pass
+        # O Playwright instala em ~/.cache/ms-playwright/chromium-<numero>/chrome-linux/chrome
+        base_path = "/home/render/.cache/ms-playwright/chromium-*"
+        binarios = glob.glob(os.path.join(base_path, "chrome-linux/chrome"))
+        
+        if binarios:
+            chrome_options.binary_location = binarios[0]
+            print(f"✅ Chromium encontrado em: {binarios[0]}")
+        else:
+            print("⚠️ Chromium não encontrado pelo glob, tentando caminho alternativo...")
+            chrome_options.binary_location = "/usr/bin/google-chrome"
 
     service = Service(ChromeDriverManager().install())
     return webdriver.Chrome(service=service, options=chrome_options)
