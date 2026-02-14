@@ -37,4 +37,4 @@ async def enviar_ao_telegram(produto: dict):
         await client.send_message(canal_principal, legenda, file=produto['imagem'], parse_mode='md')
         salvar_como_postado(produto['asin'])
     except Exception as e:
-        await enviar_debug(f"Erro envio principal: {e}")
+        await enviar_debug(f"ERRO Envio: {e}")

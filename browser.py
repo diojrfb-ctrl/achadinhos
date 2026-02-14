@@ -3,27 +3,32 @@ import glob
 from playwright.async_api import async_playwright
 
 async def obter_browser():
-    """Localiza o executável do Playwright em qualquer diretório do Render."""
+    """Busca recursivamente por qualquer executável do Chromium no Render."""
     pw = await async_playwright().start()
     
-    # Lista de caminhos possíveis onde o Render pode instalar o browser
-    caminhos_possiveis = [
-        "/opt/render/.cache/ms-playwright/chromium-*/chrome-linux/chrome",
-        "/home/render/.cache/ms-playwright/chromium-*/chrome-linux/chrome",
-        "/opt/render/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell"
+    # Lista de padrões para encontrar o executável, não importa a versão
+    padrões = [
+        "/opt/render/.cache/ms-playwright/**/chrome",
+        "/opt/render/.cache/ms-playwright/**/chrome-headless-shell",
+        "/home/render/.cache/ms-playwright/**/chrome",
+        "/home/render/.cache/ms-playwright/**/chrome-headless-shell"
     ]
     
     executable = None
-    for pattern in caminhos_possiveis:
-        found = glob.glob(pattern)
-        if found:
-            executable = found[0]
-            break
+    for pattern in padrões:
+        found = glob.glob(pattern, recursive=True)
+        # Filtra para garantir que pegamos o arquivo executável real
+        for path in found:
+            if os.path.isfile(path) and os.access(path, os.X_OK):
+                executable = path
+                break
+        if executable: break
+
+    print(f"DEBUG: Binário encontrado em: {executable}")
     
-    # Se executable for None, o Playwright tentará usar o padrão do sistema
     browser = await pw.chromium.launch(
         headless=True,
-        executable_path=executable,
+        executable_path=executable, # Se for None, o Playwright tenta o padrão
         args=["--no-sandbox", "--disable-dev-shm-usage"]
     )
     
