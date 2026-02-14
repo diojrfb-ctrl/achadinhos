@@ -4,15 +4,16 @@ import threading
 from flask import Flask
 from dotenv import load_dotenv
 
-# Importe suas funções de mineração aqui
-# Certifique-se de que os nomes dos arquivos/funções batem com os seus
-from amazon_miner import minerar_amazon 
-from telegram_sender import enviar_ao_telegram
+# Importações dos seus módulos
+try:
+    from amazon_miner import minerar_amazon 
+    from telegram_sender import enviar_ao_telegram
+except ImportError as e:
+    print(f"❌ Erro ao importar módulos: {e}")
 
-# Carrega as variáveis do arquivo .env (local) ou do Render (produção)
 load_dotenv()
 
-# Configurações do Flask para o Render não derrubar o serviço
+# --- CONFIGURAÇÃO FLASK (Para o Render não matar o processo) ---
 app = Flask(__name__)
 
 @app.route('/')
@@ -20,49 +21,49 @@ def health_check():
     return "Bot Achadinhos está online!", 200
 
 def run_flask():
-    # O Render exige que o app escute na porta definida pela variável PORT
+    # O Render usa a variável de ambiente PORT
     port = int(os.environ.get("PORT", 10000))
+    print(f"🌍 Servidor Health Check rodando na porta {port}")
     app.run(host='0.0.0.0', port=port)
 
+# --- LÓGICA DO BOT ---
 async def engine():
-    """Função principal que coordena a mineração e o envio"""
-    print("💎 Minerando ofertas...")
+    print("💎 Iniciar mineração de ofertas...")
     
-    # Exemplo de URLs e ID da loja (ajuste conforme sua lógica)
+    # Substitua pelas suas URLs reais
     URLS_AMAZON = [
-        "https://www.amazon.com.br/gp/goldbox",
-        "https://www.amazon.com.br/b?node=16215417011"
+        "https://www.amazon.com.br/gp/goldbox"
     ]
-    STORE_ID = os.getenv("AMAZON_STORE_ID", "seu_id-20")
+    STORE_ID = os.getenv("AMAZON_STORE_ID", "padrão-20")
 
     while True:
         try:
-            # 1. Minera as ofertas
+            print("🔍 Verificando novas ofertas na Amazon...")
             ofertas = await minerar_amazon(URLS_AMAZON, STORE_ID)
             
-            if ofertas:
-                print(f"🔥 {len(ofertas)} novas ofertas encontradas!")
-                # 2. Envia para o Telegram
+            if ofertas and len(ofertas) > 0:
+                print(f"🔥 {len(ofertas)} ofertas encontradas!")
                 for oferta in ofertas:
                     await enviar_ao_telegram(oferta)
+                    await asyncio.sleep(2)  # Delay pequeno para não dar spam
             else:
-                print("Wait... Nenhuma oferta nova agora.")
+                print("ℹ️ Nenhuma oferta nova encontrada neste ciclo.")
 
-            # 3. Espera X minutos antes de minerar de novo (ex: 15 min)
-            print("💤 Aguardando próximo ciclo...")
-            await asyncio.sleep(900) 
+            # Espera 20 minutos (1200 segundos) para a próxima verificação
+            print("💤 Aguardando 20 minutos para o próximo ciclo...")
+            await asyncio.sleep(1200) 
             
         except Exception as e:
-            print(f"❌ Erro no loop principal: {e}")
-            await asyncio.sleep(60) # Espera 1 minuto antes de tentar de novo após erro
+            print(f"❌ Erro crítico no loop: {e}")
+            await asyncio.sleep(60) # Espera 1 minuto antes de tentar de novo
 
 if __name__ == "__main__":
-    # 1. Inicia o servidor Flask em uma thread separada
-    print("🌍 Iniciando servidor de monitoramento...")
-    threading.Thread(target=run_flask, daemon=True).start()
+    # 1. Inicia o Flask em background
+    t = threading.Thread(target=run_flask, daemon=True)
+    t.start()
 
-    # 2. Inicia o loop assíncrono do Bot
+    # 2. Inicia o Bot
     try:
         asyncio.run(engine())
-    except KeyboardInterrupt:
-        print("Bot desligado manualmente.")
+    except (KeyboardInterrupt, SystemExit):
+        print("Bot encerrado.")
