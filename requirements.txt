@@ -1,8 +1,8 @@
-# Servidor Web e Interface
+# Servidor Web (Necessário para o Render manter o bot vivo)
 flask==3.1.2
 gunicorn==25.1.0
 
-# Automação e Navegação
+# Automação e Scraping
 selenium==4.40.0
 webdriver-manager==4.0.2
 playwright==1.58.0
