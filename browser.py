@@ -5,51 +5,44 @@ from playwright.async_api import async_playwright
 async def obter_browser():
     """
     Inicializa o Playwright otimizado para o ambiente Render.
-    Versão compatível com Playwright 1.58.0
+    Versão compatível com Playwright que procura chromium_headless_shell-1208
     """
     print("🔄 Iniciando Playwright...")
     pw = await async_playwright().start()
     
     try:
-        # Playwright 1.58.0 usa chromium-1124
-        cache_dir = os.path.expanduser("~/.cache/ms-playwright")
-        render_cache = "/opt/render/.cache/ms-playwright"
-        
-        # Lista de possíveis caminhos para o executável
+        # Caminhos específicos para a versão 1208 que o log mostra
         caminhos_possiveis = [
-            # Render.com cache
-            "/opt/render/.cache/ms-playwright/chromium-1124/chrome-linux/chrome",
-            "/opt/render/.cache/ms-playwright/chromium_headless_shell-1124/chrome-linux/chrome",
-            # Home directory cache
-            os.path.expanduser("~/.cache/ms-playwright/chromium-1124/chrome-linux/chrome"),
-            os.path.expanduser("~/.cache/ms-playwright/chromium_headless_shell-1124/chrome-linux/chrome"),
-            # Tentativa com versão mais recente
-            "/opt/render/.cache/ms-playwright/chromium-1125/chrome-linux/chrome",
-            os.path.expanduser("~/.cache/ms-playwright/chromium-1125/chrome-linux/chrome"),
+            # O caminho exato que o erro mostra
+            "/opt/render/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell",
+            "/opt/render/.cache/ms-playwright/chromium-1208/chrome-linux/chrome",
+            "/opt/render/.cache/ms-playwright/chromium_headless_shell-1208/chrome-linux/chrome",
+            # Cache no home directory
+            os.path.expanduser("~/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell"),
+            os.path.expanduser("~/.cache/ms-playwright/chromium-1208/chrome-linux/chrome"),
         ]
         
         browser = None
         ultimo_erro = None
         
-        # Primeiro, vamos verificar se os diretórios existem
-        print("📁 Verificando diretórios de cache...")
-        for diretorio in [cache_dir, render_cache]:
-            if os.path.exists(diretorio):
-                print(f"✅ Diretório encontrado: {diretorio}")
-                try:
-                    conteudo = os.listdir(diretorio)
-                    print(f"   Conteúdo: {conteudo}")
-                except:
-                    print(f"   Não foi possível listar conteúdo")
-            else:
-                print(f"❌ Diretório não encontrado: {diretorio}")
+        print("📁 Verificando caminhos para Chromium 1208...")
+        
+        # Primeiro, vamos verificar se o diretório base existe
+        base_dir = "/opt/render/.cache/ms-playwright"
+        if os.path.exists(base_dir):
+            print(f"✅ Diretório base encontrado: {base_dir}")
+            try:
+                conteudo = os.listdir(base_dir)
+                print(f"📂 Pastas disponíveis: {[d for d in conteudo if 'chromium' in d]}")
+            except:
+                print("❌ Erro ao listar conteúdo")
         
         # Tenta cada caminho possível
         for caminho in caminhos_possiveis:
             try:
                 if os.path.exists(caminho):
-                    print(f"✅ Executável encontrado em: {caminho}")
-                    print(f"🔄 Tentando iniciar browser com este executável...")
+                    print(f"✅ Executável encontrado: {caminho}")
+                    print(f"🔄 Tentando iniciar browser...")
                     
                     browser = await pw.chromium.launch(
                         executable_path=caminho,
@@ -63,28 +56,48 @@ async def obter_browser():
                             "--disable-blink-features=AutomationControlled",
                         ]
                     )
-                    print(f"✅ Browser iniciado com sucesso usando: {caminho}")
+                    print(f"✅ Browser iniciado com sucesso!")
                     break
                 else:
                     print(f"❌ Executável não encontrado: {caminho}")
             except Exception as e:
                 ultimo_erro = e
-                print(f"❌ Erro ao tentar {caminho}: {str(e)}")
+                print(f"❌ Erro ao tentar {caminho}: {str(e)[:100]}")
                 continue
         
-        # Se não encontrou nenhum caminho, tenta sem especificar o executable_path
+        # Se não encontrou, tenta encontrar automaticamente
         if not browser:
-            print("🔄 Nenhum executável encontrado. Tentando modo automático...")
+            print("🔄 Buscando automaticamente por executáveis do Chromium...")
+            
+            # Procura por qualquer executável chromium no cache
+            find_cmd = "find /opt/render/.cache/ms-playwright -name chrome -o -name chrome-headless-shell -type f 2>/dev/null | head -3"
+            import subprocess
+            result = subprocess.run(find_cmd, shell=True, capture_output=True, text=True)
+            
+            if result.stdout:
+                caminhos_encontrados = result.stdout.strip().split('\n')
+                for caminho in caminhos_encontrados:
+                    if caminho and os.path.exists(caminho):
+                        print(f"🔄 Tentando executável encontrado: {caminho}")
+                        try:
+                            browser = await pw.chromium.launch(
+                                executable_path=caminho,
+                                headless=True,
+                                args=["--no-sandbox", "--disable-dev-shm-usage"]
+                            )
+                            print(f"✅ Browser iniciado com: {caminho}")
+                            break
+                        except Exception as e:
+                            print(f"❌ Falha com {caminho}: {e}")
+                            continue
+        
+        # Última tentativa: modo automático
+        if not browser:
+            print("🔄 Última tentativa: modo automático")
             try:
                 browser = await pw.chromium.launch(
                     headless=True,
-                    args=[
-                        "--no-sandbox",
-                        "--disable-dev-shm-usage",
-                        "--disable-gpu",
-                        "--disable-setuid-sandbox",
-                        "--no-zygote",
-                    ]
+                    args=["--no-sandbox", "--disable-dev-shm-usage"]
                 )
                 print("✅ Browser iniciado em modo automático!")
             except Exception as e:
