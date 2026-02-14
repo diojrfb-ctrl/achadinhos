@@ -3,10 +3,10 @@ import glob
 from playwright.async_api import async_playwright
 
 async def obter_browser():
-    """Inicia o navegador Chromium do Playwright no ambiente do Render."""
+    """Inicia o motor Playwright de forma compatível com o Render."""
     pw = await async_playwright().start()
     
-    # Busca o executável no cache do Render
+    # Busca o executável do Chromium no diretório de usuário do Render
     path_pattern = "/home/render/.cache/ms-playwright/chromium-*/chrome-linux/chrome"
     found_paths = glob.glob(path_pattern)
     executable = found_paths[0] if found_paths else None
@@ -14,7 +14,7 @@ async def obter_browser():
     browser = await pw.chromium.launch(
         headless=True,
         executable_path=executable,
-        args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+        args=["--no-sandbox", "--disable-dev-shm-usage"]
     )
     
     context = await browser.new_context(

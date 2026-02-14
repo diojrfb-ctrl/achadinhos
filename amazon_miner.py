@@ -13,12 +13,11 @@ async def minerar_amazon(urls: List[str], store_id: str) -> List[Dict[str, str]]
         page = await context.new_page()
 
         for url in urls:
-            # Aumentamos o timeout para 60s devido à lentidão comum em instâncias gratuitas
             await page.goto(url, wait_until="domcontentloaded", timeout=60000)
             await page.evaluate("window.scrollBy(0, 800)") # Scroll para carregar imagens
             await asyncio.sleep(5)
             
-            # Busca blocos de produtos
+            # Localiza os blocos de produtos
             itens = await page.query_selector_all("div[data-asin]:not([data-asin=''])")
             await enviar_debug(f"Página carregada. Blocos de produtos (ASIN) encontrados: {len(itens)}")
 
