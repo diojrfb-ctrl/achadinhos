@@ -11,20 +11,21 @@ def configurar_navegador():
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
-    
-    # Busca o binário do Chromium instalado pelo Playwright no Render
-    if os.getenv("RENDER"):
-        # O asterisco ajuda a ignorar a variação da versão (ex: chromium-1155)
-        path_pattern = "/home/render/.cache/ms-playwright/chromium-*/chrome-linux/chrome"
-        found_paths = glob.glob(path_pattern)
-        
-        if found_paths:
-            chrome_options.binary_location = found_paths[0]
-            print(f"✅ Navegador encontrado: {found_paths[0]}")
-        else:
-            # Tenta um caminho alternativo comum em instâncias Linux
-            chrome_options.binary_location = "/usr/bin/google-chrome"
-            print("⚠️ Usando caminho padrão do sistema para o Chrome")
+    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
+    # Busca o binário do Chromium instalado pelo Playwright
+    path_pattern = "/home/render/.cache/ms-playwright/chromium-*/chrome-linux/chrome"
+    found_paths = glob.glob(path_pattern)
+    
+    if found_paths:
+        chrome_options.binary_location = found_paths[0]
+        print(f"✅ Navegador Playwright encontrado: {found_paths[0]}")
+    else:
+        # Tenta o caminho padrão se o de cima falhar
+        chrome_options.binary_location = "/usr/bin/google-chrome"
+        print("⚠️ Usando caminho padrão do sistema para o Chrome")
+
+    # Tenta usar o driver gerenciado automaticamente
     service = Service(ChromeDriverManager().install())
     return webdriver.Chrome(service=service, options=chrome_options)
