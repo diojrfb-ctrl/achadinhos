@@ -1,37 +1,42 @@
 #!/usr/bin/env bash
 set -o errexit
 
-echo "🚀 Iniciando build..."
+echo "🚀 Iniciando build do OfertasFlashBR"
+echo "===================================="
 
 # Instala dependências Python
+echo "📦 Instalando dependências Python..."
 pip install -r requirements.txt
 
-# Limpa cache antigo (opcional, mas pode ajudar)
-rm -rf /opt/render/.cache/ms-playwright/* 2>/dev/null || true
-
-# Instala o Chromium com todas as dependências
-echo "📥 Instalando Chromium..."
+# Instala o Playwright e browsers
+echo "🎭 Instalando Playwright browsers..."
 python -m playwright install chromium
 python -m playwright install-deps chromium
 
-# Verifica a instalação
+# Verifica instalação
 echo "🔍 Verificando instalação..."
 CACHE_DIR="/opt/render/.cache/ms-playwright"
 
 if [ -d "$CACHE_DIR" ]; then
-    echo "✅ Playwright cache encontrado"
-    ls -la "$CACHE_DIR"
+    echo "✅ Playwright cache encontrado em: $CACHE_DIR"
     
-    # Mostra detalhes da versão 1208 especificamente
-    if [ -d "$CACHE_DIR/chromium_headless_shell-1208" ]; then
-        echo "✅ Versão 1208 encontrada!"
-        ls -la "$CACHE_DIR/chromium_headless_shell-1208/"*
+    # Lista versões instaladas
+    echo "📂 Versões do Chromium instaladas:"
+    ls -la "$CACHE_DIR" | grep chromium || true
+    
+    # Procura pelo executável
+    CHROME_PATH=$(find "$CACHE_DIR" -name "chrome" -o -name "chrome-headless-shell" -type f | head -1)
+    if [ -n "$CHROME_PATH" ]; then
+        echo "✅ Executável encontrado: $CHROME_PATH"
     else
-        echo "⚠️ Versão 1208 não encontrada. Pastas disponíveis:"
-        ls -d "$CACHE_DIR"/* 2>/dev/null | grep -o '[^/]*$' || true
+        echo "⚠️ Executável não encontrado, mas deve funcionar em modo automático"
     fi
 else
-    echo "❌ Cache não encontrado em $CACHE_DIR"
+    echo "⚠️ Cache não encontrado em $CACHE_DIR"
 fi
 
-echo "✅ Build concluído!"
+# Cria diretório para logs se necessário
+mkdir -p logs
+
+echo "✅ Build concluído com sucesso!"
+echo "===================================="
