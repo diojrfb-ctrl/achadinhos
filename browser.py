@@ -12,21 +12,22 @@ def configurar_navegador():
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--window-size=1920,1080")
-    # User-Agent para evitar detecção de bot
+    # User-Agent real para evitar Captcha da Amazon
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
     
-    # Caminho onde o Playwright instala o Chromium no Render
-    path_pattern = "/opt/render/.cache/ms-playwright/chromium-*/chrome-linux/chrome"
+    # Localizar o binário do Chromium do Playwright no Render (Caminho de Usuário)
+    path_pattern = "/home/render/.cache/ms-playwright/chromium-*/chrome-linux/chrome"
     found_paths = glob.glob(path_pattern)
     
     if found_paths:
         chrome_options.binary_location = found_paths[0]
         print(f"✅ Navegador Playwright detectado: {found_paths[0]}")
     else:
-        # Fallback para sistemas locais
+        # Se falhar, tenta o caminho padrão (fallback)
         if os.path.exists("/usr/bin/google-chrome"):
             chrome_options.binary_location = "/usr/bin/google-chrome"
-        print("⚠️ Usando configuração de binário padrão")
+        print("⚠️ Usando caminho padrão do sistema")
 
+    # Instala o driver compatível
     service = Service(ChromeDriverManager().install())
     return webdriver.Chrome(service=service, options=chrome_options)
