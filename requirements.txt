@@ -6,3 +6,4 @@ upstash-redis
 webdriver-manager
 requests
 gunicorn
+playwright
