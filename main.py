@@ -1,66 +1,68 @@
 import os
 import asyncio
-import requests
-import io
+import threading
+from flask import Flask
 from dotenv import load_dotenv
-from telethon import TelegramClient
-from telethon.sessions import StringSession
 
-# Importando nossos componentes
-from amazon_miner import minerar_amazon
-from database import salvar_como_postado
+# Importe suas funções de mineração aqui
+# Certifique-se de que os nomes dos arquivos/funções batem com os seus
+from amazon_miner import minerar_amazon 
+from telegram_sender import enviar_ao_telegram
 
+# Carrega as variáveis do arquivo .env (local) ou do Render (produção)
 load_dotenv()
 
-API_ID = int(os.getenv("API_ID"))
-API_HASH = os.getenv("API_HASH")
-STRING_SESSION = os.getenv("STRING_SESSION")
-MEU_CANAL = os.getenv("MEU_CANAL")
-STORE_ID = os.getenv("StoreID")
+# Configurações do Flask para o Render não derrubar o serviço
+app = Flask(__name__)
 
-URLS_AMAZON = [
-    "https://www.amazon.com.br/s?k=eletronicos&rh=p_85%3A19173332011%2Cp_n_pct-off-with-tax%3A10-",
-    "https://www.amazon.com.br/s?k=cozinha&rh=p_85%3A19173332011%2Cp_n_pct-off-with-tax%3A15-"
-]
+@app.route('/')
+def health_check():
+    return "Bot Achadinhos está online!", 200
 
-client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
-
-
-async def postar_oferta(p):
-    header = f"🔥 {p['desconto']} de ECONOMIA!" if p['desconto'] else "💎 OPORTUNIDADE ÚNICA!"
-    texto = (
-        f"{header}\n━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"📦 **{p['titulo']}**\n\n"
-        f"💰 **VALORES:**\n"
-        f"❌ De: ~~{p['preco_antigo'] if p['preco_antigo'] else 'Preço Normal'}~~\n"
-        f"✅ **Por: {p['preco']}**\n\n"
-        f"🛒 **LINK OFICIAL:**\n{p['link']}\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-    )
-
-    res = requests.get(p['imagem'], timeout=10)
-    foto = io.BytesIO(res.content)
-    foto.name = "oferta.jpg"
-    await client.send_message(MEU_CANAL, texto, file=foto, parse_mode='markdown')
-    salvar_como_postado(p['asin'])
-
+def run_flask():
+    # O Render exige que o app escute na porta definida pela variável PORT
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
 
 async def engine():
-    await client.start()
+    """Função principal que coordena a mineração e o envio"""
+    print("💎 Minerando ofertas...")
+    
+    # Exemplo de URLs e ID da loja (ajuste conforme sua lógica)
+    URLS_AMAZON = [
+        "https://www.amazon.com.br/gp/goldbox",
+        "https://www.amazon.com.br/b?node=16215417011"
+    ]
+    STORE_ID = os.getenv("AMAZON_STORE_ID", "seu_id-20")
+
     while True:
-        # Futuramente você fará: ofertas = await minerar_amazon(...) + await minerar_shopee(...)
-        ofertas = await minerar_amazon(URLS_AMAZON, STORE_ID)
+        try:
+            # 1. Minera as ofertas
+            ofertas = await minerar_amazon(URLS_AMAZON, STORE_ID)
+            
+            if ofertas:
+                print(f"🔥 {len(ofertas)} novas ofertas encontradas!")
+                # 2. Envia para o Telegram
+                for oferta in ofertas:
+                    await enviar_ao_telegram(oferta)
+            else:
+                print("Wait... Nenhuma oferta nova agora.")
 
-        for p in ofertas:
-            try:
-                await postar_oferta(p)
-                await asyncio.sleep(180)  # Delay entre posts
-            except Exception as e:
-                print(f"Erro: {e}")
-
-        print("Ciclo finalizado. Aguardando próximo agendamento.")
-        await asyncio.sleep(2700)
-
+            # 3. Espera X minutos antes de minerar de novo (ex: 15 min)
+            print("💤 Aguardando próximo ciclo...")
+            await asyncio.sleep(900) 
+            
+        except Exception as e:
+            print(f"❌ Erro no loop principal: {e}")
+            await asyncio.sleep(60) # Espera 1 minuto antes de tentar de novo após erro
 
 if __name__ == "__main__":
-    asyncio.run(engine())
+    # 1. Inicia o servidor Flask em uma thread separada
+    print("🌍 Iniciando servidor de monitoramento...")
+    threading.Thread(target=run_flask, daemon=True).start()
+
+    # 2. Inicia o loop assíncrono do Bot
+    try:
+        asyncio.run(engine())
+    except KeyboardInterrupt:
+        print("Bot desligado manualmente.")
