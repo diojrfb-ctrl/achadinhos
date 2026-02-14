@@ -1,9 +1,16 @@
-telethon
-selenium
-python-dotenv
-flask
-upstash-redis
-webdriver-manager
-requests
-gunicorn
-playwright
+# Servidor Web e Interface
+flask==3.1.2
+gunicorn==25.1.0
+
+# Automação e Navegação
+selenium==4.40.0
+webdriver-manager==4.0.2
+playwright==1.58.0
+
+# Integrações e Banco de Dados
+telethon==1.42.0
+upstash-redis==1.6.0
+requests==2.32.5
+
+# Utilitários
+python-dotenv==1.2.1
