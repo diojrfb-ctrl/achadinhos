@@ -1,30 +1,29 @@
 import os
+import subprocess
 from playwright.async_api import async_playwright
 
 async def obter_browser():
     """
-    Inicializa o Playwright e o navegador Chromium de forma dinâmica.
-    Removemos a busca manual por caminhos (glob) para evitar erros de versão.
+    Inicializa o Playwright forçando o caminho local para evitar erros de 
+    binário inexistente no Render.
     """
-    # Inicializa o motor do Playwright
+    # Define onde os navegadores devem estar (dentro da pasta do projeto)
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = os.path.join(os.getcwd(), ".playwright")
+    
     pw = await async_playwright().start()
     
     try:
-        # Lançamos o browser sem definir 'executable_path' manualmente.
-        # O Playwright encontrará o binário correto automaticamente se ele 
-        # for instalado via comando de build no Render.
+        # Tentativa de lançar o navegador
         browser = await pw.chromium.launch(
             headless=True,
             args=[
                 "--no-sandbox", 
                 "--disable-dev-shm-usage",
-                "--disable-setuid-sandbox",
-                "--no-zygote",
-                "--single-process" # Recomendado para instâncias com pouca RAM (Free Tier)
+                "--disable-gpu",
+                "--single-process"
             ]
         )
         
-        # Cria um novo contexto com um User-Agent real para evitar bloqueios da Amazon
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
         )
@@ -32,7 +31,6 @@ async def obter_browser():
         return pw, browser, context
         
     except Exception as e:
-        # Se falhar ao abrir o navegador, encerramos o Playwright para evitar vazamento de memória
         await pw.stop()
-        print(f"ERRO CRÍTICO ao iniciar o navegador: {e}")
+        print(f"ERRO CRÍTICO no browser.py: {e}")
         raise e
