@@ -12,15 +12,17 @@ def configurar_navegador():
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
     
-    # Tenta localizar o executável do Chromium instalado pelo Playwright
-    try:
-        import playwright
-        # Comando para pegar o caminho do executável
-        path = subprocess.check_output(["playwright", "wk", "path"]).decode().strip()
-        # Nota: No Render, o caminho geralmente fica em /home/render/.cache/ms-playwright/
-        chrome_options.binary_location = path
-    except:
-        pass
+    # No Render, tentamos encontrar o Chromium do Playwright
+    if os.getenv("RENDER"):
+        try:
+            # Comando que retorna onde o executável foi instalado
+            executable_path = subprocess.getoutput("which chromium").strip()
+            if not executable_path:
+                # Caminho padrão do Playwright no Linux
+                executable_path = "/home/render/.cache/ms-playwright/chromium-1155/chrome-linux/chrome"
+            chrome_options.binary_location = executable_path
+        except:
+            pass
 
     service = Service(ChromeDriverManager().install())
     return webdriver.Chrome(service=service, options=chrome_options)
