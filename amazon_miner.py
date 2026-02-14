@@ -1,82 +1,68 @@
 import asyncio
-import re
-from html import unescape
 from typing import List, Dict
-from selenium.webdriver.common.by import By
-from browser import configurar_navegador
+from browser import obter_browser
 from database import ja_foi_postado
 from telegram_sender import enviar_debug
 
-def converter_preco(texto: str) -> float:
-    try:
-        return float(re.sub(r'[^\d,]', '', texto).replace(',', '.'))
-    except:
-        return 0.0
-
 async def minerar_amazon(urls: List[str], store_id: str) -> List[Dict[str, str]]:
-    await enviar_debug("🔍 Iniciando processo de mineração na Amazon...")
+    await enviar_debug("🔍 Iniciando mineração com motor Playwright...")
     produtos = []
-    driver = configurar_navegador()
-
+    
     try:
+        pw, browser, context = await obter_browser()
+        page = await context.new_page()
+
         for url in urls:
-            driver.get(url)
-            await asyncio.sleep(8) # Espera o Render processar a página
+            # Aumentamos o timeout para 60s devido à lentidão comum em instâncias gratuitas
+            await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            await page.evaluate("window.scrollBy(0, 800)") # Scroll para carregar imagens
+            await asyncio.sleep(5)
             
-            # Busca itens que possuam um ASIN (produtos reais)
-            itens = driver.find_elements(By.XPATH, "//div[@data-asin and not(@data-asin='')]")
-            await enviar_debug(f"Página acessada: {len(itens)} itens detectados no layout.")
+            # Busca blocos de produtos
+            itens = await page.query_selector_all("div[data-asin]:not([data-asin=''])")
+            await enviar_debug(f"Página carregada. Blocos de produtos (ASIN) encontrados: {len(itens)}")
 
             for item in itens:
                 try:
-                    asin = item.get_attribute("data-asin")
+                    asin = await item.get_attribute("data-asin")
                     if not asin or ja_foi_postado(asin):
                         continue
 
-                    titulo = item.find_element(By.TAG_NAME, "h2").text
-                    
-                    # Tenta capturar o preço de forma resiliente
-                    try:
-                        p_int = item.find_element(By.CLASS_NAME, "a-price-whole").text
-                        p_frac = item.find_element(By.CLASS_NAME, "a-price-fraction").text
-                        preco_str = f"R$ {p_int},{p_frac}"
-                    except:
-                        preco_str = item.find_element(By.CLASS_NAME, "a-offscreen").get_attribute("innerText")
+                    # Captura Título
+                    titulo_el = await item.query_selector("h2")
+                    titulo = await titulo_el.inner_text() if titulo_el else "Produto sem título"
 
-                    img_url = item.find_element(By.TAG_NAME, "img").get_attribute("src")
+                    # Captura Preço
+                    preco = "Ver na loja"
+                    p_el = await item.query_selector(".a-price-whole")
+                    if p_el:
+                        p_frac = await item.query_selector(".a-price-fraction")
+                        frac_text = await p_frac.inner_text() if p_frac else "00"
+                        preco = f"R$ {await p_el.inner_text()},{frac_text}".replace("\n", "")
+                    else:
+                        p_off = await item.query_selector(".a-offscreen")
+                        if p_off: preco = await p_off.inner_text()
 
-                    # Lógica de Desconto
-                    preco_antigo = ""
-                    porcentagem = ""
-                    try:
-                        p_antigo_raw = item.find_element(By.CLASS_NAME, "a-text-price").find_element(By.CLASS_NAME, "a-offscreen").get_attribute("innerHTML")
-                        preco_antigo = unescape(p_antigo_raw).strip()
-                        
-                        v_atual = converter_preco(preco_str)
-                        v_antigo = converter_preco(preco_antigo)
-                        if v_antigo > v_atual:
-                            porcentagem = f"{int((1 - (v_atual / v_antigo)) * 100)}% OFF"
-                    except:
-                        pass
+                    # Captura Imagem
+                    img_el = await item.query_selector("img")
+                    img_url = await img_el.get_attribute("src") if img_el else ""
 
                     produtos.append({
-                        "asin": asin, "titulo": titulo, "imagem": img_url,
+                        "asin": asin,
+                        "titulo": titulo.strip()[:100] + "...",
+                        "imagem": img_url,
                         "link": f"https://www.amazon.com.br/dp/{asin}?tag={store_id}",
-                        "preco": preco_str, "preco_antigo": preco_antigo,
-                        "desconto": porcentagem
+                        "preco": preco,
                     })
-                    
-                    if len(produtos) >= 5: break # Limite por ciclo para evitar spam
-                except Exception as e:
-                    # Log de erro silencioso por item para não travar o loop
-                    continue
 
-        if not produtos:
-            await enviar_debug("⚠️ Nenhum produto novo ou válido foi extraído nesta rodada.")
-            
+                    if len(produtos) >= 5: break
+                except:
+                    continue
+                    
+        await browser.close()
+        await pw.stop()
+        
     except Exception as e:
-        await enviar_debug(f"🚨 ERRO CRÍTICO no minerador: {e}")
-    finally:
-        driver.quit()
+        await enviar_debug(f"🚨 Erro na extração Playwright: {str(e)[:150]}")
     
     return produtos
