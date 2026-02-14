@@ -1,0 +1,8 @@
+telethon
+selenium
+python-dotenv
+flask
+upstash-redis
+webdriver-manager
+requests
+gunicorn
